@@ -36,6 +36,7 @@ func (s *Server) SetupRouter() *gin.Engine {
 		api.DELETE("/properties/:id", s.handleDeleteProperty)
 		api.GET("/properties/:id/status", s.handleGetPropertyStatus)
 		api.GET("/properties/:id/devices", s.handleGetPropertyDevices)
+		api.POST("/properties/:id/sync-devices", s.handleSyncDevicesFromPfSense)
 
 		// Contacts
 		api.GET("/properties/:id/contacts", s.handleListContactsForProperty)

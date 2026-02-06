@@ -4,15 +4,19 @@ import "time"
 
 // Property represents a physical property location
 type Property struct {
-	ID             int64     `json:"id"`
-	Name           string    `json:"name"`
-	Address        string    `json:"address"`
-	Subnet         string    `json:"subnet"`
-	Notes          string    `json:"notes"`
-	ISPCompanyName string    `json:"isp_company_name"`
-	ISPAccountInfo string    `json:"isp_account_info"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
+	ID              int64     `json:"id"`
+	Name            string    `json:"name"`
+	Address         string    `json:"address"`
+	Subnet          string    `json:"subnet"`
+	Notes           string    `json:"notes"`
+	ISPCompanyName  string    `json:"isp_company_name"`
+	ISPAccountInfo  string    `json:"isp_account_info"`
+	PfSenseHost     string    `json:"pfsense_host"`
+	PfSensePort     int       `json:"pfsense_port"`
+	PfSenseUsername string    `json:"pfsense_username"`
+	PfSensePassword string    `json:"pfsense_password,omitempty"` // omitempty for security
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 // PropertyWithStatus includes computed status

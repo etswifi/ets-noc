@@ -11,6 +11,7 @@ import (
 	"github.com/etswifi/ets-noc/internal/gcs"
 	"github.com/etswifi/ets-noc/internal/models"
 	"github.com/etswifi/ets-noc/internal/monitor"
+	"github.com/etswifi/ets-noc/internal/pfsense"
 	"github.com/etswifi/ets-noc/internal/storage"
 )
 
@@ -656,4 +657,97 @@ func (s *Server) handleUpdateSettings(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, settings)
+}
+
+// SyncDevicesFromPfSense syncs devices from pfSense DHCP static mappings
+func (s *Server) handleSyncDevicesFromPfSense(c *gin.Context) {
+	propertyID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{Error: "Invalid property ID"})
+		return
+	}
+
+	property, err := s.postgres.GetProperty(context.Background(), propertyID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, models.ErrorResponse{Error: "Property not found"})
+		return
+	}
+
+	if property.PfSenseHost == "" || property.PfSenseUsername == "" || property.PfSensePassword == "" {
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			Error: "pfSense credentials not configured for this property",
+		})
+		return
+	}
+
+	pfClient := pfsense.NewClient(property.PfSenseHost, property.PfSensePort, property.PfSenseUsername, property.PfSensePassword)
+	mappings, err := pfClient.GetDHCPStaticMappingsXML(context.Background())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			Error: fmt.Sprintf("Failed to fetch devices from pfSense: %v", err),
+		})
+		return
+	}
+
+	created, updated := 0, 0
+	var errors []string
+
+	for _, mapping := range mappings {
+		if mapping.Hostname == "" || mapping.IPAddr == "" {
+			continue
+		}
+
+		deviceType := pfsense.DetermineDeviceType(mapping.IPAddr)
+		tags := []string{deviceType}
+
+		existingDevices, err := s.postgres.ListDevices(context.Background())
+		if err != nil {
+			errors = append(errors, fmt.Sprintf("Failed to list devices: %v", err))
+			continue
+		}
+
+		var existingDevice *models.Device
+		for _, d := range existingDevices {
+			if d.PropertyID == propertyID && d.Hostname == mapping.IPAddr {
+				existingDevice = &d
+				break
+			}
+		}
+
+		if existingDevice != nil {
+			existingDevice.Name = mapping.Hostname
+			existingDevice.Tags = tags
+			if err := s.postgres.UpdateDevice(context.Background(), existingDevice); err != nil {
+				errors = append(errors, fmt.Sprintf("Failed to update %s: %v", mapping.Hostname, err))
+				continue
+			}
+			updated++
+		} else {
+			device := &models.Device{
+				PropertyID: propertyID,
+				Name:       mapping.Hostname,
+				Hostname:   mapping.IPAddr,
+				DeviceType: deviceType,
+				Tags:       tags,
+				IsCritical: deviceType == "Router",
+				Active:     true,
+			}
+			if err := s.postgres.CreateDevice(context.Background(), device); err != nil {
+				errors = append(errors, fmt.Sprintf("Failed to create %s: %v", mapping.Hostname, err))
+				continue
+			}
+			created++
+		}
+	}
+
+	response := map[string]interface{}{
+		"success": true,
+		"created": created,
+		"updated": updated,
+		"total":   len(mappings),
+	}
+	if len(errors) > 0 {
+		response["errors"] = errors
+	}
+	c.JSON(http.StatusOK, response)
 }
