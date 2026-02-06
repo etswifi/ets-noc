@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ets-noc-config
+  namespace: ets-noc
+data:
+  REDIS_ADDR: "ets-noc-redis:6379"
+  GCS_BUCKET: "ets-noc-attachments"

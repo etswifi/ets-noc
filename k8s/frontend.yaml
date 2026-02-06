@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ets-noc-frontend
+  namespace: ets-noc
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ets-noc-frontend
+  template:
+    metadata:
+      labels:
+        app: ets-noc-frontend
+    spec:
+      containers:
+      - name: frontend
+        image: gcr.io/YOUR_PROJECT_ID/ets-noc-frontend:latest
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ets-noc-frontend
+  namespace: ets-noc
+spec:
+  selector:
+    app: ets-noc-frontend
+  ports:
+  - port: 80
+    targetPort: 80
+  type: ClusterIP

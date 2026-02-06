@@ -1,0 +1,22 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/ets-noc-worker:$SHORT_SHA'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/ets-noc-worker:latest'
+      - '-f'
+      - 'Dockerfile.worker'
+      - '.'
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/ets-noc-worker:$SHORT_SHA'
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/ets-noc-worker:latest'
+images:
+  - 'gcr.io/$PROJECT_ID/ets-noc-worker:$SHORT_SHA'
+  - 'gcr.io/$PROJECT_ID/ets-noc-worker:latest'
