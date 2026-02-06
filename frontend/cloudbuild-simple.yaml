@@ -1,0 +1,9 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/ets-noc/ets-noc-frontend:latest'
+      - '.'
+images:
+  - 'gcr.io/ets-noc/ets-noc-frontend:latest'

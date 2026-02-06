@@ -1,0 +1,11 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/ets-noc/ets-noc-worker:latest'
+      - '-f'
+      - 'Dockerfile.worker'
+      - '.'
+images:
+  - 'gcr.io/ets-noc/ets-noc-worker:latest'
