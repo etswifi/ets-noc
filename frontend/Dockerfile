@@ -16,6 +16,13 @@ COPY docker-entrypoint.sh /docker-entrypoint.sh
 
 RUN chmod +x /docker-entrypoint.sh
 
-EXPOSE 80
+RUN mkdir -p /etc/nginx/ssl && \
+    apk add --no-cache openssl && \
+    openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+      -keyout /etc/nginx/ssl/self-signed.key \
+      -out /etc/nginx/ssl/self-signed.crt \
+      -subj "/CN=status.etsusa.com"
+
+EXPOSE 80 443
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
