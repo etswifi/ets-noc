@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { apiClient } from '../api/client'
 import PropertyCard from '../components/PropertyCard'
 import PropertyDetailModal from '../components/PropertyDetailModal'
+import PropertyModal from '../components/PropertyModal'
 import Header from '../components/Header'
 
 export default function DashboardPage() {
@@ -10,6 +11,7 @@ export default function DashboardPage() {
   const [dashboard, setDashboard] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [selectedProperty, setSelectedProperty] = useState<any>(null)
+  const [showPropertyModal, setShowPropertyModal] = useState(false)
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [searchQuery, setSearchQuery] = useState('')
 
@@ -55,7 +57,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      <Header user={user} onRefresh={loadDashboard} />
+      <Header user={user} onRefresh={loadDashboard} onAddProperty={() => setShowPropertyModal(true)} />
 
       <div className="container mx-auto px-4 py-6">
         {/* Summary Cards */}
@@ -156,6 +158,13 @@ export default function DashboardPage() {
           property={selectedProperty}
           onClose={() => setSelectedProperty(null)}
           onUpdate={loadDashboard}
+        />
+      )}
+
+      {showPropertyModal && (
+        <PropertyModal
+          onClose={() => setShowPropertyModal(false)}
+          onSuccess={loadDashboard}
         />
       )}
     </div>

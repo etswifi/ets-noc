@@ -3,16 +3,25 @@ import { useAuth } from '../contexts/AuthContext'
 interface HeaderProps {
   user: any
   onRefresh: () => void
+  onAddProperty?: () => void
 }
 
-export default function Header({ user, onRefresh }: HeaderProps) {
+export default function Header({ user, onRefresh, onAddProperty }: HeaderProps) {
   const { logout } = useAuth()
 
   return (
     <header className="bg-white shadow-sm">
       <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">ETS Properties Monitoring</h1>
+        <h1 className="text-2xl font-bold text-gray-900">ETS NOC</h1>
         <div className="flex items-center gap-4">
+          {onAddProperty && (
+            <button
+              onClick={onAddProperty}
+              className="px-4 py-2 text-sm bg-green-600 text-white rounded-md hover:bg-green-700"
+            >
+              + Add Property
+            </button>
+          )}
           <button
             onClick={onRefresh}
             className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
