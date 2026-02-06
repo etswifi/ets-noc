@@ -52,15 +52,13 @@ func (c *Client) UploadFile(ctx context.Context, objectName string, reader io.Re
 
 // GetSignedURL generates a signed URL for downloading a file
 func (c *Client) GetSignedURL(ctx context.Context, objectName string, expiration time.Duration) (string, error) {
-	bucket := c.client.Bucket(c.bucketName)
-	obj := bucket.Object(objectName)
-
 	opts := &storage.SignedURLOptions{
+		Scheme:  storage.SigningSchemeV4,
 		Method:  "GET",
 		Expires: time.Now().Add(expiration),
 	}
 
-	url, err := obj.SignedURL(opts)
+	url, err := c.client.Bucket(c.bucketName).SignedURL(objectName, opts)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate signed URL: %w", err)
 	}
