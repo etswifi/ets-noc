@@ -48,7 +48,7 @@ func (s *Server) handleDashboard(c *gin.Context) {
 		return
 	}
 
-	var propertiesWithStatus []models.PropertyWithStatus
+	propertiesWithStatus := make([]models.PropertyWithStatus, 0)
 	redCount, yellowCount, greenCount := 0, 0, 0
 
 	for _, prop := range properties {
