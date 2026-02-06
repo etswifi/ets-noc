@@ -1,0 +1,11 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/ets-noc/ets-noc-api:latest'
+      - '-f'
+      - 'Dockerfile.api'
+      - '.'
+images:
+  - 'gcr.io/ets-noc/ets-noc-api:latest'
