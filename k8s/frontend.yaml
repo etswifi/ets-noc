@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: gcr.io/YOUR_PROJECT_ID/ets-noc-frontend:latest
+        image: gcr.io/ets-noc/ets-noc-frontend:latest
         ports:
         - containerPort: 80
         resources:
