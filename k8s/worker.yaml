@@ -13,7 +13,6 @@ spec:
       labels:
         app: ets-noc-worker
     spec:
-      serviceAccountName: cloudsql-sa
       containers:
       - name: worker
         image: gcr.io/ets-noc/ets-noc-worker:latest
@@ -50,6 +49,13 @@ spec:
         args:
         - "--port=5432"
         - "ets-noc:us-west3:noc-db"
+        env:
+        - name: GOOGLE_APPLICATION_CREDENTIALS
+          value: /secrets/cloudsql/key.json
+        volumeMounts:
+        - name: cloudsql-instance-credentials
+          mountPath: /secrets/cloudsql
+          readOnly: true
         securityContext:
           runAsNonRoot: true
         resources:
@@ -59,3 +65,7 @@ spec:
           limits:
             memory: "256Mi"
             cpu: "200m"
+      volumes:
+      - name: cloudsql-instance-credentials
+        secret:
+          secretName: cloudsql-instance-credentials
