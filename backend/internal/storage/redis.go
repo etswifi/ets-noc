@@ -120,12 +120,13 @@ func (r *RedisStore) GetAllDeviceStatuses(ctx context.Context) (map[int64]*model
 }
 
 // Device History Operations
-func (r *RedisStore) AddDeviceHistory(ctx context.Context, deviceID int64, status string, responseTime float64) error {
+func (r *RedisStore) AddDeviceHistory(ctx context.Context, deviceID int64, status string, responseTime float64, message string) error {
 	timestamp := time.Now().Unix()
 	history := models.DeviceHistory{
 		Timestamp:    timestamp,
 		Status:       status,
 		ResponseTime: responseTime,
+		Message:      message,
 	}
 
 	data, err := json.Marshal(history)
@@ -165,6 +166,37 @@ func (r *RedisStore) GetDeviceHistory(ctx context.Context, deviceID int64, start
 		history = append(history, h)
 	}
 	return history, nil
+}
+
+func (r *RedisStore) GetDeviceErrors(ctx context.Context, deviceID int64, limit int) ([]models.DeviceHistory, error) {
+	// Get recent history (last 7 days to ensure we have enough errors)
+	endTime := time.Now()
+	startTime := endTime.AddDate(0, 0, -7)
+
+	data, err := r.client.ZRevRangeByScore(ctx, deviceHistoryKey(deviceID), &redis.ZRangeBy{
+		Min:   strconv.FormatInt(startTime.Unix(), 10),
+		Max:   strconv.FormatInt(endTime.Unix(), 10),
+		Count: int64(limit * 10), // Get more than needed to filter offline only
+	}).Result()
+	if err != nil {
+		return nil, err
+	}
+
+	var errors []models.DeviceHistory
+	for _, item := range data {
+		var h models.DeviceHistory
+		if err := json.Unmarshal([]byte(item), &h); err != nil {
+			continue
+		}
+		// Only include offline statuses
+		if h.Status == "offline" {
+			errors = append(errors, h)
+			if len(errors) >= limit {
+				break
+			}
+		}
+	}
+	return errors, nil
 }
 
 // Property Status Operations

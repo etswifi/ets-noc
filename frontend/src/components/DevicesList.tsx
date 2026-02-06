@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { apiClient } from '../api/client'
+import DeviceDetailModal from './DeviceDetailModal'
 
 interface DevicesListProps {
   devices: any[]
@@ -10,12 +11,38 @@ interface DevicesListProps {
 export default function DevicesList({ devices, propertyId, onUpdate }: DevicesListProps) {
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingDevice, setEditingDevice] = useState<any>(null)
+  const [selectedDevice, setSelectedDevice] = useState<any>(null)
+  const [deviceStatuses, setDeviceStatuses] = useState<Record<number, any>>({})
   const [formData, setFormData] = useState({
     name: '',
     hostname: '',
     device_type: 'wap',
     is_critical: false,
+    check_interval: 60,
+    retries: 3,
+    timeout: 10000,
   })
+
+  useEffect(() => {
+    loadDeviceStatuses()
+    const interval = setInterval(loadDeviceStatuses, 10000) // Refresh every 10s
+    return () => clearInterval(interval)
+  }, [devices])
+
+  const loadDeviceStatuses = async () => {
+    const statuses: Record<number, any> = {}
+    await Promise.all(
+      devices.map(async (device) => {
+        try {
+          const status = await apiClient.getDeviceStatus(device.id)
+          statuses[device.id] = status
+        } catch (error) {
+          console.error(`Failed to load status for device ${device.id}:`, error)
+        }
+      })
+    )
+    setDeviceStatuses(statuses)
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -33,7 +60,7 @@ export default function DevicesList({ devices, propertyId, onUpdate }: DevicesLi
       }
       setShowAddModal(false)
       setEditingDevice(null)
-      setFormData({ name: '', hostname: '', device_type: 'wap', is_critical: false })
+      setFormData({ name: '', hostname: '', device_type: 'wap', is_critical: false, check_interval: 60, retries: 3, timeout: 10000 })
       onUpdate()
     } catch (error: any) {
       alert(error.message)
@@ -57,6 +84,9 @@ export default function DevicesList({ devices, propertyId, onUpdate }: DevicesLi
       hostname: device.hostname,
       device_type: device.device_type,
       is_critical: device.is_critical,
+      check_interval: device.check_interval || 60,
+      retries: device.retries || 3,
+      timeout: device.timeout || 10000,
     })
     setShowAddModal(true)
   }
@@ -74,37 +104,103 @@ export default function DevicesList({ devices, propertyId, onUpdate }: DevicesLi
       </div>
 
       <div className="space-y-2">
-        {devices.map((device) => (
-          <div key={device.id} className="bg-gray-50 rounded-lg p-4 flex items-center justify-between">
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <h4 className="font-medium">{device.name}</h4>
-                {device.is_critical && (
-                  <span className="text-xs bg-red-600 text-white px-2 py-1 rounded-full">
-                    CRITICAL
-                  </span>
-                )}
+        {devices
+          .sort((a, b) => {
+            // Sort by IP address (convert to number for proper sorting)
+            const ipToNum = (ip: string) => {
+              const parts = ip.split('.').map(Number)
+              return (parts[0] || 0) * 16777216 + (parts[1] || 0) * 65536 + (parts[2] || 0) * 256 + (parts[3] || 0)
+            }
+            return ipToNum(a.hostname) - ipToNum(b.hostname)
+          })
+          .map((device) => {
+          const status = deviceStatuses[device.id]
+          const isOnline = status?.status === 'online'
+          return (
+            <div
+              key={device.id}
+              className="bg-gray-50 rounded-lg p-4 flex items-center justify-between hover:bg-gray-100 cursor-pointer transition-colors"
+              onClick={() => setSelectedDevice(device)}
+            >
+              <div className="flex items-center gap-3 flex-1">
+                {/* Status Indicator */}
+                <div className="flex flex-col items-center">
+                  <div
+                    className={`w-4 h-4 rounded-full ${
+                      isOnline ? 'bg-green-500' : 'bg-red-500'
+                    } animate-pulse`}
+                  />
+                  {status?.response_time && (
+                    <div className="text-xs text-gray-500 mt-1">
+                      {status.response_time}ms
+                    </div>
+                  )}
+                </div>
+
+                {/* Device Info */}
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-medium">{device.name}</h4>
+                    {device.is_critical && (
+                      <span className="text-xs bg-red-600 text-white px-2 py-1 rounded-full">
+                        CRITICAL
+                      </span>
+                    )}
+                    <span
+                      className={`text-xs px-2 py-1 rounded-full ${
+                        isOnline
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-red-100 text-red-700'
+                      }`}
+                    >
+                      {isOnline ? 'ONLINE' : 'OFFLINE'}
+                    </span>
+                  </div>
+                  <div className="text-sm text-gray-600 mt-1">
+                    <a
+                      href={`https://${device.hostname}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {device.hostname}
+                    </a>
+                    {' • '}{device.device_type}
+                    {device.tags && device.tags.length > 0 && (
+                      <span className="ml-2">
+                        {device.tags.map((tag: string) => (
+                          <span
+                            key={tag}
+                            className="inline-block bg-gray-200 px-2 py-0.5 rounded text-xs ml-1"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
-              <div className="text-sm text-gray-600 mt-1">
-                {device.hostname} • {device.device_type}
+
+              {/* Actions */}
+              <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                <button
+                  onClick={() => openEditModal(device)}
+                  className="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={() => handleDelete(device.id)}
+                  className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700"
+                >
+                  Delete
+                </button>
               </div>
             </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => openEditModal(device)}
-                className="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
-              >
-                Edit
-              </button>
-              <button
-                onClick={() => handleDelete(device.id)}
-                className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       {devices.length === 0 && (
@@ -168,6 +264,50 @@ export default function DevicesList({ devices, propertyId, onUpdate }: DevicesLi
                   />
                   <label className="text-sm text-gray-700">Mark as Critical Device</label>
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Check Interval (seconds)
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.check_interval}
+                    onChange={(e) => setFormData({ ...formData, check_interval: parseInt(e.target.value) || 60 })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    min="10"
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">How often to check device status (default: 60)</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Retries
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.retries}
+                    onChange={(e) => setFormData({ ...formData, retries: parseInt(e.target.value) || 3 })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    min="1"
+                    max="10"
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Number of retry attempts (default: 3)</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Timeout (milliseconds)
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.timeout}
+                    onChange={(e) => setFormData({ ...formData, timeout: parseInt(e.target.value) || 10000 })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    min="1000"
+                    max="60000"
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Ping timeout in ms (default: 10000)</p>
+                </div>
               </div>
               <div className="flex justify-end gap-2 mt-6">
                 <button
@@ -175,7 +315,7 @@ export default function DevicesList({ devices, propertyId, onUpdate }: DevicesLi
                   onClick={() => {
                     setShowAddModal(false)
                     setEditingDevice(null)
-                    setFormData({ name: '', hostname: '', device_type: 'wap', is_critical: false })
+                    setFormData({ name: '', hostname: '', device_type: 'wap', is_critical: false, check_interval: 60, retries: 3, timeout: 10000 })
                   }}
                   className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
                 >
@@ -191,6 +331,13 @@ export default function DevicesList({ devices, propertyId, onUpdate }: DevicesLi
             </form>
           </div>
         </div>
+      )}
+
+      {selectedDevice && (
+        <DeviceDetailModal
+          device={selectedDevice}
+          onClose={() => setSelectedDevice(null)}
+        />
       )}
     </div>
   )

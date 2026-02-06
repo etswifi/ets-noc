@@ -105,6 +105,12 @@ class ApiClient {
     return this.request<any[]>(`/api/v1/properties/${id}/devices`)
   }
 
+  async syncDevicesFromPfSense(id: number) {
+    return this.request<any>(`/api/v1/properties/${id}/sync-devices`, {
+      method: 'POST',
+    })
+  }
+
   // Contacts
   async getContacts(propertyId: number) {
     return this.request<any[]>(`/api/v1/properties/${propertyId}/contacts`)
@@ -212,6 +218,10 @@ class ApiClient {
     if (end) params.append('end', end)
     if (params.toString()) url += `?${params.toString()}`
     return this.request<any[]>(url)
+  }
+
+  async getDeviceErrors(id: number, limit: number = 10) {
+    return this.request<any[]>(`/api/v1/devices/${id}/errors?limit=${limit}`)
   }
 
   // Users

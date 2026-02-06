@@ -136,14 +136,78 @@ func (c *Client) GetDHCPStaticMappingsXML(ctx context.Context) ([]DHCPStaticMapp
 	}
 	defer session.Close()
 
-	// Get the full config.xml
-	output, err := session.CombinedOutput("cat /cf/conf/config.xml")
+	// Create pipes for stdin/stdout to handle interactive menu
+	stdin, err := session.StdinPipe()
 	if err != nil {
-		return nil, fmt.Errorf("failed to execute command: %w", err)
+		return nil, fmt.Errorf("failed to get stdin pipe: %w", err)
 	}
 
+	stdout, err := session.StdoutPipe()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get stdout pipe: %w", err)
+	}
+
+	// Start shell
+	if err := session.Shell(); err != nil {
+		return nil, fmt.Errorf("failed to start shell: %w", err)
+	}
+
+	// Send "8" to select shell option from pfSense menu
+	if _, err := stdin.Write([]byte("8\n")); err != nil {
+		return nil, fmt.Errorf("failed to send menu option: %w", err)
+	}
+
+	// Wait a moment for shell to be ready
+	time.Sleep(500 * time.Millisecond)
+
+	// Send command to get config.xml
+	if _, err := stdin.Write([]byte("cat /cf/conf/config.xml\n")); err != nil {
+		return nil, fmt.Errorf("failed to send command: %w", err)
+	}
+
+	// Send exit command
+	if _, err := stdin.Write([]byte("exit\n")); err != nil {
+		return nil, fmt.Errorf("failed to send exit: %w", err)
+	}
+
+	// Read all output
+	output := make([]byte, 0)
+	buffer := make([]byte, 4096)
+	deadline := time.Now().Add(10 * time.Second)
+
+	for time.Now().Before(deadline) {
+		n, err := stdout.Read(buffer)
+		if n > 0 {
+			output = append(output, buffer[:n]...)
+		}
+		if err != nil {
+			break
+		}
+	}
+
+	// Wait for session to finish
+	session.Wait()
+
+	outputStr := string(output)
+
+	// Extract XML from output (it's between the command echo and the next prompt)
+	// Look for XML declaration
+	xmlStart := strings.Index(outputStr, "<?xml")
+	if xmlStart == -1 {
+		return nil, fmt.Errorf("no XML found in output")
+	}
+
+	// Find the end of XML (look for closing pfsense tag)
+	xmlEnd := strings.Index(outputStr[xmlStart:], "</pfsense>")
+	if xmlEnd == -1 {
+		return nil, fmt.Errorf("incomplete XML in output")
+	}
+	xmlEnd += xmlStart + len("</pfsense>")
+
+	xmlContent := outputStr[xmlStart:xmlEnd]
+
 	var cfg ConfigXML
-	if err := xml.Unmarshal(output, &cfg); err != nil {
+	if err := xml.Unmarshal([]byte(xmlContent), &cfg); err != nil {
 		return nil, fmt.Errorf("failed to parse XML: %w", err)
 	}
 

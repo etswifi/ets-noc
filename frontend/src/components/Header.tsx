@@ -1,4 +1,5 @@
 import { useAuth } from '../contexts/AuthContext'
+import Logo from './Logo'
 
 interface HeaderProps {
   user: any
@@ -10,9 +11,9 @@ export default function Header({ user, onRefresh, onAddProperty }: HeaderProps) 
   const { logout } = useAuth()
 
   return (
-    <header className="bg-white shadow-sm">
-      <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">ETS NOC</h1>
+    <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
+      <div className="container mx-auto px-4 py-3 flex items-center justify-between">
+        <Logo size="sm" />
         <div className="flex items-center gap-4">
           {onAddProperty && (
             <button
@@ -29,10 +30,10 @@ export default function Header({ user, onRefresh, onAddProperty }: HeaderProps) 
             Refresh
           </button>
           <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-600">{user?.username}</span>
+            <span className="text-sm text-gray-600 dark:text-gray-300">{user?.username}</span>
             <button
               onClick={logout}
-              className="px-4 py-2 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
+              className="px-4 py-2 text-sm bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600"
             >
               Logout
             </button>

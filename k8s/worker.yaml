@@ -81,7 +81,11 @@ spec:
         - name: TS_STATE_DIR
           value: /var/lib/tailscale
         - name: TS_ACCEPT_DNS
-          value: "false"
+          value: "true"
+        - name: TS_ACCEPT_ROUTES
+          value: "true"
+        - name: TS_EXTRA_ARGS
+          value: "--accept-routes --accept-dns"
         - name: POD_NAME
           valueFrom:
             fieldRef:

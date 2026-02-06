@@ -17,6 +17,8 @@ func (s *Server) SetupRouter() *gin.Engine {
 	// Public routes
 	router.GET("/health", s.handleHealth)
 	router.POST("/api/v1/auth/login", s.handleLogin)
+	router.GET("/api/v1/auth/google", s.handleGoogleLogin)
+	router.GET("/api/v1/auth/google/callback", s.handleGoogleCallback)
 
 	// Protected routes
 	api := router.Group("/api/v1")
@@ -59,6 +61,7 @@ func (s *Server) SetupRouter() *gin.Engine {
 		api.DELETE("/devices/:id", s.handleDeleteDevice)
 		api.GET("/devices/:id/status", s.handleGetDeviceStatus)
 		api.GET("/devices/:id/history", s.handleGetDeviceHistory)
+		api.GET("/devices/:id/errors", s.handleGetDeviceErrors)
 
 		// Admin-only routes
 		admin := api.Group("")

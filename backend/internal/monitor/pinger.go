@@ -97,7 +97,7 @@ func (p *Pinger) checkDevices(ctx context.Context) error {
 				}
 
 				// Store history
-				if err := p.redis.AddDeviceHistory(ctx, d.ID, status.Status, status.ResponseTime); err != nil {
+				if err := p.redis.AddDeviceHistory(ctx, d.ID, status.Status, status.ResponseTime, status.Message); err != nil {
 					log.Printf("Failed to add device history for %s: %v", d.Name, err)
 				}
 			}

@@ -471,6 +471,19 @@ func (s *Server) handleCreateDevice(c *gin.Context) {
 		return
 	}
 
+	// Set defaults if not provided
+	if device.CheckInterval <= 0 {
+		device.CheckInterval = 60
+	}
+	if device.Retries <= 0 {
+		device.Retries = 3
+	}
+	if device.Timeout <= 0 {
+		device.Timeout = 10000
+	}
+	// Default to active if not explicitly set
+	device.Active = true
+
 	if err := s.postgres.CreateDevice(context.Background(), &device); err != nil {
 		c.JSON(http.StatusInternalServerError, models.ErrorResponse{Error: err.Error()})
 		return
@@ -562,6 +575,30 @@ func (s *Server) handleGetDeviceHistory(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, history)
+}
+
+func (s *Server) handleGetDeviceErrors(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{Error: "Invalid device ID"})
+		return
+	}
+
+	// Default limit to 10
+	limit := 10
+	if limitStr := c.Query("limit"); limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
+			limit = l
+		}
+	}
+
+	errors, err := s.redis.GetDeviceErrors(context.Background(), id, limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, errors)
 }
 
 // Users
@@ -717,6 +754,16 @@ func (s *Server) handleSyncDevicesFromPfSense(c *gin.Context) {
 		if existingDevice != nil {
 			existingDevice.Name = mapping.Hostname
 			existingDevice.Tags = tags
+			// Fix monitoring settings if they're missing/invalid
+			if existingDevice.CheckInterval <= 0 {
+				existingDevice.CheckInterval = 60
+			}
+			if existingDevice.Retries <= 0 {
+				existingDevice.Retries = 3
+			}
+			if existingDevice.Timeout <= 0 {
+				existingDevice.Timeout = 10000
+			}
 			if err := s.postgres.UpdateDevice(context.Background(), existingDevice); err != nil {
 				errors = append(errors, fmt.Sprintf("Failed to update %s: %v", mapping.Hostname, err))
 				continue
@@ -724,13 +771,16 @@ func (s *Server) handleSyncDevicesFromPfSense(c *gin.Context) {
 			updated++
 		} else {
 			device := &models.Device{
-				PropertyID: propertyID,
-				Name:       mapping.Hostname,
-				Hostname:   mapping.IPAddr,
-				DeviceType: deviceType,
-				Tags:       tags,
-				IsCritical: deviceType == "Router",
-				Active:     true,
+				PropertyID:    propertyID,
+				Name:          mapping.Hostname,
+				Hostname:      mapping.IPAddr,
+				DeviceType:    deviceType,
+				Tags:          tags,
+				IsCritical:    deviceType == "Router",
+				Active:        true,
+				CheckInterval: 60,    // 60 seconds
+				Retries:       3,     // 3 retries
+				Timeout:       10000, // 10 seconds in milliseconds
 			}
 			if err := s.postgres.CreateDevice(context.Background(), device); err != nil {
 				errors = append(errors, fmt.Sprintf("Failed to create %s: %v", mapping.Hostname, err))

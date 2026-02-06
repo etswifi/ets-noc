@@ -10,6 +10,7 @@ import (
 	"github.com/lib/pq"
 	_ "github.com/lib/pq"
 	"github.com/etswifi/ets-noc/internal/models"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type PostgresStore struct {
@@ -55,7 +56,36 @@ func (s *PostgresStore) CreateProperty(ctx context.Context, p *models.Property) 
 		SET subnet = '10.' || (99 + (id / 256))::text || '.' || (id % 256)::text || '.0/24'
 		WHERE id = $1
 		RETURNING subnet`
-	return s.db.QueryRowContext(ctx, subnetQuery, p.ID).Scan(&p.Subnet)
+	if err := s.db.QueryRowContext(ctx, subnetQuery, p.ID).Scan(&p.Subnet); err != nil {
+		return err
+	}
+
+	// Auto-create router device at .1
+	routerIP := fmt.Sprintf("10.%d.%d.1", 99+(p.ID/256), p.ID%256)
+	routerDevice := &models.Device{
+		PropertyID:    p.ID,
+		Name:          fmt.Sprintf("%s-router", p.Name),
+		Hostname:      routerIP,
+		DeviceType:    "Router",
+		Tags:          []string{"Router"},
+		IsCritical:    true,
+		Active:        true,
+		CheckInterval: 60,
+		Retries:       3,
+		Timeout:       10000,
+		Description:   "Auto-created router device",
+	}
+
+	routerQuery := `
+		INSERT INTO devices (property_id, name, hostname, device_type, is_critical, check_interval, retries, timeout, description, tags, active)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		RETURNING id, created_at, updated_at`
+	err = s.db.QueryRowContext(ctx, routerQuery, routerDevice.PropertyID, routerDevice.Name, routerDevice.Hostname,
+		routerDevice.DeviceType, routerDevice.IsCritical, routerDevice.CheckInterval, routerDevice.Retries,
+		routerDevice.Timeout, routerDevice.Description, pq.Array(routerDevice.Tags), routerDevice.Active).
+		Scan(&routerDevice.ID, &routerDevice.CreatedAt, &routerDevice.UpdatedAt)
+
+	return err
 }
 
 func (s *PostgresStore) GetProperty(ctx context.Context, id int64) (*models.Property, error) {
@@ -154,7 +184,7 @@ func (s *PostgresStore) ListContactsForProperty(ctx context.Context, propertyID 
 	}
 	defer rows.Close()
 
-	var contacts []models.Contact
+	contacts := make([]models.Contact, 0)
 	for rows.Next() {
 		var c models.Contact
 		if err := rows.Scan(&c.ID, &c.PropertyID, &c.Name, &c.Phone, &c.Email, &c.Role, &c.Notes,
@@ -223,7 +253,7 @@ func (s *PostgresStore) ListAttachmentsForProperty(ctx context.Context, property
 	}
 	defer rows.Close()
 
-	var attachments []models.Attachment
+	attachments := make([]models.Attachment, 0)
 	for rows.Next() {
 		var a models.Attachment
 		if err := rows.Scan(&a.ID, &a.PropertyID, &a.Filename, &a.Description, &a.StorageType,
@@ -283,7 +313,7 @@ func (s *PostgresStore) ListDevices(ctx context.Context) ([]models.Device, error
 	}
 	defer rows.Close()
 
-	var devices []models.Device
+	devices := make([]models.Device, 0)
 	for rows.Next() {
 		var d models.Device
 		if err := rows.Scan(&d.ID, &d.PropertyID, &d.Name, &d.Hostname, &d.DeviceType, &d.IsCritical,
@@ -305,7 +335,7 @@ func (s *PostgresStore) ListDevicesForProperty(ctx context.Context, propertyID i
 	}
 	defer rows.Close()
 
-	var devices []models.Device
+	devices := make([]models.Device, 0)
 	for rows.Next() {
 		var d models.Device
 		if err := rows.Scan(&d.ID, &d.PropertyID, &d.Name, &d.Hostname, &d.DeviceType, &d.IsCritical,
@@ -327,7 +357,7 @@ func (s *PostgresStore) ListActiveDevices(ctx context.Context) ([]models.Device,
 	}
 	defer rows.Close()
 
-	var devices []models.Device
+	devices := make([]models.Device, 0)
 	for rows.Next() {
 		var d models.Device
 		if err := rows.Scan(&d.ID, &d.PropertyID, &d.Name, &d.Hostname, &d.DeviceType, &d.IsCritical,
@@ -552,6 +582,32 @@ func (s *PostgresStore) GetUserByUsername(ctx context.Context, username string) 
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("user not found")
 	}
+	return u, err
+}
+
+func (s *PostgresStore) CreateUserFromOAuth(ctx context.Context, email, name string) (*models.User, error) {
+	// For OAuth users, we set a random password they can't use
+	// They can only login via OAuth
+	randomPassword := fmt.Sprintf("oauth_%d_%s", time.Now().UnixNano(), email)
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(randomPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, err
+	}
+
+	u := &models.User{
+		Username: email,
+		Password: string(hashedPassword),
+		Email:    email,
+		Role:     "user",
+		Active:   true,
+	}
+
+	query := `
+		INSERT INTO users (username, password, email, role, active)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING id, created_at, updated_at`
+	err = s.db.QueryRowContext(ctx, query, u.Username, u.Password, u.Email, u.Role, u.Active).
+		Scan(&u.ID, &u.CreatedAt, &u.UpdatedAt)
 	return u, err
 }
 

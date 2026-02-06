@@ -100,6 +100,7 @@ type DeviceHistory struct {
 	Timestamp    int64   `json:"timestamp"`
 	Status       string  `json:"status"`
 	ResponseTime float64 `json:"response_time"`
+	Message      string  `json:"message,omitempty"`
 }
 
 // NotificationChannel represents a notification destination
