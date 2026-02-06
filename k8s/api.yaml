@@ -63,10 +63,10 @@ spec:
           initialDelaySeconds: 5
           periodSeconds: 5
       - name: cloudsql-proxy
-        image: gcr.io/cloudsql-docker/gce-proxy:latest
-        command:
-        - "/cloud_sql_proxy"
-        - "-instances=ets-noc:us-west3:noc-db=tcp:5432"
+        image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.14.1
+        args:
+        - "--port=5432"
+        - "ets-noc:us-west3:noc-db"
         securityContext:
           runAsNonRoot: true
         resources:
