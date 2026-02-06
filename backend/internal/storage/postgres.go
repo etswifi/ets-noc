@@ -49,10 +49,10 @@ func (s *PostgresStore) CreateProperty(ctx context.Context, p *models.Property) 
 		return err
 	}
 
-	// Auto-calculate subnet based on property ID: 10.(99 + floor((ID-1)/256)).((ID-1)%256).0/24
+	// Auto-calculate subnet based on property ID: 10.(99 + floor(ID/256)).(ID%256).0/24
 	subnetQuery := `
 		UPDATE properties
-		SET subnet = '10.' || (99 + ((id - 1) / 256))::text || '.' || ((id - 1) % 256)::text || '.0/24'
+		SET subnet = '10.' || (99 + (id / 256))::text || '.' || (id % 256)::text || '.0/24'
 		WHERE id = $1
 		RETURNING subnet`
 	return s.db.QueryRowContext(ctx, subnetQuery, p.ID).Scan(&p.Subnet)
