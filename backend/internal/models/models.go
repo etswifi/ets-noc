@@ -7,6 +7,7 @@ type Property struct {
 	ID             int64     `json:"id"`
 	Name           string    `json:"name"`
 	Address        string    `json:"address"`
+	Subnet         string    `json:"subnet"`
 	Notes          string    `json:"notes"`
 	ISPCompanyName string    `json:"isp_company_name"`
 	ISPAccountInfo string    `json:"isp_account_info"`

@@ -43,16 +43,27 @@ func (s *PostgresStore) CreateProperty(ctx context.Context, p *models.Property) 
 		INSERT INTO properties (name, address, notes, isp_company_name, isp_account_info)
 		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id, created_at, updated_at`
-	return s.db.QueryRowContext(ctx, query, p.Name, p.Address, p.Notes, p.ISPCompanyName, p.ISPAccountInfo).
+	err := s.db.QueryRowContext(ctx, query, p.Name, p.Address, p.Notes, p.ISPCompanyName, p.ISPAccountInfo).
 		Scan(&p.ID, &p.CreatedAt, &p.UpdatedAt)
+	if err != nil {
+		return err
+	}
+
+	// Auto-calculate subnet based on property ID: 10.(99 + floor((ID-1)/256)).((ID-1)%256).0/24
+	subnetQuery := `
+		UPDATE properties
+		SET subnet = '10.' || (99 + ((id - 1) / 256))::text || '.' || ((id - 1) % 256)::text || '.0/24'
+		WHERE id = $1
+		RETURNING subnet`
+	return s.db.QueryRowContext(ctx, subnetQuery, p.ID).Scan(&p.Subnet)
 }
 
 func (s *PostgresStore) GetProperty(ctx context.Context, id int64) (*models.Property, error) {
 	p := &models.Property{}
-	query := `SELECT id, name, address, notes, isp_company_name, isp_account_info, created_at, updated_at
+	query := `SELECT id, name, address, subnet, notes, isp_company_name, isp_account_info, created_at, updated_at
 		FROM properties WHERE id = $1`
 	err := s.db.QueryRowContext(ctx, query, id).Scan(
-		&p.ID, &p.Name, &p.Address, &p.Notes, &p.ISPCompanyName, &p.ISPAccountInfo, &p.CreatedAt, &p.UpdatedAt)
+		&p.ID, &p.Name, &p.Address, &p.Subnet, &p.Notes, &p.ISPCompanyName, &p.ISPAccountInfo, &p.CreatedAt, &p.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("property not found")
 	}
@@ -60,7 +71,7 @@ func (s *PostgresStore) GetProperty(ctx context.Context, id int64) (*models.Prop
 }
 
 func (s *PostgresStore) ListProperties(ctx context.Context) ([]models.Property, error) {
-	query := `SELECT id, name, address, notes, isp_company_name, isp_account_info, created_at, updated_at
+	query := `SELECT id, name, address, subnet, notes, isp_company_name, isp_account_info, created_at, updated_at
 		FROM properties ORDER BY name`
 	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
@@ -71,7 +82,7 @@ func (s *PostgresStore) ListProperties(ctx context.Context) ([]models.Property, 
 	var properties []models.Property
 	for rows.Next() {
 		var p models.Property
-		if err := rows.Scan(&p.ID, &p.Name, &p.Address, &p.Notes, &p.ISPCompanyName, &p.ISPAccountInfo,
+		if err := rows.Scan(&p.ID, &p.Name, &p.Address, &p.Subnet, &p.Notes, &p.ISPCompanyName, &p.ISPAccountInfo,
 			&p.CreatedAt, &p.UpdatedAt); err != nil {
 			return nil, err
 		}
