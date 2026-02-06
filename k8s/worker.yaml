@@ -13,6 +13,7 @@ spec:
       labels:
         app: ets-noc-worker
     spec:
+      serviceAccountName: tailscale
       containers:
       - name: worker
         image: gcr.io/ets-noc/ets-noc-worker:latest
@@ -81,6 +82,14 @@ spec:
           value: /var/lib/tailscale
         - name: TS_ACCEPT_DNS
           value: "false"
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_UID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.uid
         securityContext:
           capabilities:
             add:
